@@ -3,8 +3,7 @@ import { z } from 'zod';
 import { requireApiKey } from '@/lib/auth';
 import * as XLSX from 'xlsx';
 import puppeteer from 'puppeteer';
-// Importar Handlebars apenas no servidor
-const Handlebars = require('handlebars');
+import Handlebars from 'handlebars';
 
 // Schema de validação para requisições da API
 const generateReportSchema = z.object({
