@@ -1,0 +1,1 @@
+export { ReportGeneratorTemplate } from './ReportGeneratorTemplate'; 
