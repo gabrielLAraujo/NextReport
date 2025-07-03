@@ -24,10 +24,12 @@ export function PreviewPanel({
       style={{
         display: "flex",
         flexDirection: "column",
-        height: "fit-content",
-        minHeight: "calc(100vh - 200px)",
-        maxHeight: "calc(100vh - 200px)",
+        width: "100%",
         padding: "15px",
+        minHeight: "800px",
+        boxSizing: "border-box",
+        position: "sticky",
+        top: "20px",
       }}
     >
       <div
@@ -36,9 +38,19 @@ export function PreviewPanel({
           justifyContent: "space-between",
           alignItems: "center",
           marginBottom: "15px",
+          flexShrink: 0,
         }}
       >
-        <h3 style={{ margin: 0, color: "#2c3e50" }}>Preview do Relatório</h3>
+        <h3
+          style={{
+            margin: 0,
+            color: "#2c3e50",
+            fontSize: "18px",
+            fontWeight: "600",
+          }}
+        >
+          Preview do Relatório
+        </h3>
 
         <ActionButtons
           onGeneratePDF={onGeneratePDF}
@@ -50,15 +62,14 @@ export function PreviewPanel({
 
       <div
         style={{
-          flex: "1 1 auto",
+          flex: "1",
           border: "2px solid #e0e0e0",
-          borderRadius: "6px",
+          borderRadius: "8px",
           padding: "0",
           backgroundColor: "#ffffff",
           overflow: "hidden",
-          boxShadow: "inset 0 1px 3px rgba(0,0,0,0.1)",
-          minHeight: "500px",
-          maxHeight: "calc(100vh - 300px)",
+          boxShadow: "inset 0 2px 4px rgba(0,0,0,0.1)",
+          minHeight: "700px",
           display: "flex",
           flexDirection: "column",
         }}

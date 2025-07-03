@@ -24,21 +24,19 @@ export function TemplateEditor({
         display: "flex",
         flexDirection: "column",
         gap: "20px",
-        height: "fit-content",
-        minHeight: "calc(100vh - 200px)",
         width: "100%",
+        maxWidth: "100%",
       }}
     >
       {/* Template HTML */}
       <Card
         style={{
-          flex: "1 1 auto",
           display: "flex",
           flexDirection: "column",
-          minHeight: "300px",
-          maxHeight: "400px",
           width: "100%",
           padding: "20px",
+          minHeight: "300px",
+          boxSizing: "border-box",
         }}
       >
         <FormField
@@ -46,7 +44,7 @@ export function TemplateEditor({
           value={template}
           onChange={onTemplateChange}
           placeholder="Digite seu template HTML aqui..."
-          rows={10}
+          rows={12}
           language="html"
         />
       </Card>
@@ -54,13 +52,12 @@ export function TemplateEditor({
       {/* CSS */}
       <Card
         style={{
-          flex: "0 0 auto",
           display: "flex",
           flexDirection: "column",
-          minHeight: "200px",
-          maxHeight: "250px",
           width: "100%",
           padding: "20px",
+          minHeight: "200px",
+          boxSizing: "border-box",
         }}
       >
         <FormField
@@ -68,7 +65,7 @@ export function TemplateEditor({
           value={css}
           onChange={onCssChange}
           placeholder="Estilos CSS..."
-          rows={6}
+          rows={8}
           language="css"
         />
       </Card>
@@ -76,13 +73,12 @@ export function TemplateEditor({
       {/* JSON */}
       <Card
         style={{
-          flex: "1 1 auto",
           display: "flex",
           flexDirection: "column",
-          minHeight: "300px",
-          maxHeight: "400px",
           width: "100%",
           padding: "20px",
+          minHeight: "300px",
+          boxSizing: "border-box",
         }}
       >
         <FormField
@@ -90,7 +86,7 @@ export function TemplateEditor({
           value={jsonData}
           onChange={onJsonChange}
           placeholder="Cole seus dados JSON aqui..."
-          rows={10}
+          rows={12}
           language="json"
         />
       </Card>

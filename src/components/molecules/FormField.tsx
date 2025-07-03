@@ -6,8 +6,8 @@ interface FormFieldProps {
   onChange: (value: string) => void;
   placeholder?: string;
   rows?: number;
+  language?: "html" | "css" | "json" | "javascript";
   error?: string;
-  language?: "html" | "css" | "json";
 }
 
 export function FormField({
@@ -15,36 +15,60 @@ export function FormField({
   value,
   onChange,
   placeholder,
-  rows = 10,
-  error,
+  rows = 8,
   language = "html",
+  error,
 }: FormFieldProps) {
   return (
     <div
       style={{
+        width: "100%",
         display: "flex",
         flexDirection: "column",
         flex: 1,
-        width: "100%",
-        height: "100%",
+        minHeight: "inherit",
       }}
     >
-      <CodeEditor
-        label={label}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        rows={rows}
-        error={error}
-        language={language}
+      <label
         style={{
-          flex: 1,
-          width: "100%",
-          minHeight: rows === 10 ? "300px" : rows === 6 ? "200px" : "400px",
-          maxHeight: rows === 10 ? "400px" : rows === 6 ? "250px" : "400px",
-          height: "100%",
+          display: "block",
+          marginBottom: "10px",
+          fontWeight: 700,
+          color: "#000000",
+          fontSize: "16px",
+          textShadow: "none",
         }}
-      />
+      >
+        {label}
+      </label>
+
+      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <CodeEditor
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          rows={rows}
+          language={language}
+          style={{
+            flex: 1,
+            minHeight: "inherit",
+          }}
+        />
+
+        {error && (
+          <span
+            style={{
+              display: "block",
+              marginTop: "6px",
+              fontSize: "13px",
+              color: "#e74c3c",
+              fontWeight: "500",
+            }}
+          >
+            {error}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
