@@ -34,12 +34,12 @@ export default function Home() {
           gap: "20px",
           marginTop: "20px",
           marginBottom: "20px",
-          alignItems: "start",
-          gridAutoRows: "max-content",
+          alignItems: "stretch",
+          minHeight: "calc(100vh - 200px)",
         }}
       >
         {/* Coluna Esquerda - Template Editor */}
-        <div className="left-column" style={{ width: "100%" }}>
+        <div className="left-column" style={{ width: "100%", display: "flex", flexDirection: "column" }}>
           <TemplateEditor
             template={template}
             css={css}
@@ -51,7 +51,7 @@ export default function Home() {
         </div>
 
         {/* Coluna Direita - Preview Panel */}
-        <div className="right-column" style={{ width: "100%" }}>
+        <div className="right-column" style={{ width: "100%", display: "flex", flexDirection: "column" }}>
           <PreviewPanel
             htmlContent={getPreviewHtml()}
             cssContent={css}

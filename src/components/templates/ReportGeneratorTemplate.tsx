@@ -47,6 +47,7 @@ export function ReportGeneratorTemplate({
         /* Grid responsivo */
         .main-grid {
           container-type: inline-size;
+          align-items: stretch !important;
         }
 
         /* Responsividade aprimorada */
@@ -63,6 +64,8 @@ export function ReportGeneratorTemplate({
           .right-column {
             order: 2;
             position: static !important;
+            height: 60vh !important;
+            min-height: 500px !important;
           }
         }
 
@@ -70,6 +73,11 @@ export function ReportGeneratorTemplate({
           .main-grid {
             gap: 15px !important;
             margin: 10px 0 !important;
+          }
+
+          .right-column {
+            height: 50vh !important;
+            min-height: 400px !important;
           }
         }
 

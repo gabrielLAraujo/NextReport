@@ -1,4 +1,7 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 // Chaves de API válidas (em produção, isso deveria vir de um banco de dados)
 const VALID_API_KEYS = new Set([
@@ -25,20 +28,109 @@ export function getApiKeyFromRequest(request: NextRequest): string | null {
 }
 
 // Middleware para validar API Key
-export function requireApiKey(request: NextRequest) {
-  if (!validateApiKey(request)) {
-    return new Response(
-      JSON.stringify({ 
-        error: 'API Key inválida ou ausente',
-        message: 'Inclua uma API Key válida no header X-API-Key ou Authorization: Bearer <key>'
-      }), 
+export async function requireApiKey(request: NextRequest): Promise<NextResponse | null> {
+  try {
+    const apiKey = request.headers.get('X-API-Key');
+    
+    if (!apiKey) {
+      return NextResponse.json(
+        { 
+          error: 'API Key obrigatória',
+          message: 'Inclua sua API Key no header "X-API-Key"',
+          documentation: '/docs'
+        },
+        { status: 401 }
+      );
+    }
+
+    // Validar formato da API Key
+    if (!apiKey.startsWith('nxr_') || apiKey.length !== 68) {
+      return NextResponse.json(
+        { 
+          error: 'API Key inválida',
+          message: 'Formato de API Key inválido',
+          documentation: '/docs'
+        },
+        { status: 401 }
+      );
+    }
+
+    // Buscar API Key no banco de dados
+    const keyRecord = await prisma.apiKey.findUnique({
+      where: { apiKey },
+    });
+
+    if (!keyRecord) {
+      return NextResponse.json(
+        { 
+          error: 'API Key não encontrada',
+          message: 'API Key não existe ou foi revogada',
+          documentation: '/docs'
+        },
+        { status: 401 }
+      );
+    }
+
+    if (!keyRecord.isActive) {
+      return NextResponse.json(
+        { 
+          error: 'API Key inativa',
+          message: 'Esta API Key foi desativada',
+          documentation: '/docs'
+        },
+        { status: 401 }
+      );
+    }
+
+    // Atualizar estatísticas de uso
+    await prisma.apiKey.update({
+      where: { apiKey },
+      data: {
+        lastUsed: new Date(),
+        usageCount: {
+          increment: 1,
+        },
+      },
+    });
+
+    // API Key válida
+    return null;
+
+  } catch (error) {
+    console.error('Erro na validação da API Key:', error);
+    
+    return NextResponse.json(
       { 
-        status: 401,
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      }
+        error: 'Erro interno do servidor',
+        message: 'Erro ao validar API Key'
+      },
+      { status: 500 }
     );
+  } finally {
+    await prisma.$disconnect();
   }
-  return null;
+}
+
+// Função para obter informações da API Key
+export async function getApiKeyInfo(apiKey: string) {
+  try {
+    const keyRecord = await prisma.apiKey.findUnique({
+      where: { apiKey },
+      select: {
+        id: true,
+        email: true,
+        isActive: true,
+        createdAt: true,
+        lastUsed: true,
+        usageCount: true,
+      },
+    });
+
+    return keyRecord;
+  } catch (error) {
+    console.error('Erro ao obter informações da API Key:', error);
+    return null;
+  } finally {
+    await prisma.$disconnect();
+  }
 } 

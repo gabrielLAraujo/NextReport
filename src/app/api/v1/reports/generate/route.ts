@@ -30,7 +30,7 @@ const generateReportSchema = z.object({
 
 export async function POST(request: NextRequest) {
   // Validar API Key
-  const authError = requireApiKey(request);
+  const authError = await requireApiKey(request);
   if (authError) {
     return authError;
   }
