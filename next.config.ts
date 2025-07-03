@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
   
   // Configurações experimentais
   experimental: {
-    serverComponentsExternalPackages: ['puppeteer', 'handlebars'],
+    serverComponentsExternalPackages: ['@prisma/client'],
   },
   
   // Configurações de webpack
@@ -25,6 +25,7 @@ const nextConfig: NextConfig = {
         'handlebars': 'commonjs handlebars',
         'puppeteer': 'commonjs puppeteer'
       });
+      config.externals.push('@prisma/client');
     }
     
     // Ignorar warnings do handlebars

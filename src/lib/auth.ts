@@ -1,31 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
-
-// Chaves de API válidas (em produção, isso deveria vir de um banco de dados)
-const VALID_API_KEYS = new Set([
-  'nxr_demo_key_123456789',
-  'nxr_prod_key_987654321',
-  // Adicione mais chaves conforme necessário
-]);
-
-export function validateApiKey(request: NextRequest): boolean {
-  const apiKey = request.headers.get('x-api-key') || 
-                 request.headers.get('authorization')?.replace('Bearer ', '');
-  
-  if (!apiKey) {
-    return false;
-  }
-  
-  return VALID_API_KEYS.has(apiKey);
-}
-
-export function getApiKeyFromRequest(request: NextRequest): string | null {
-  return request.headers.get('x-api-key') || 
-         request.headers.get('authorization')?.replace('Bearer ', '') || 
-         null;
-}
+import { prisma } from './prisma';
 
 // Middleware para validar API Key
 export async function requireApiKey(request: NextRequest): Promise<NextResponse | null> {
@@ -106,8 +80,6 @@ export async function requireApiKey(request: NextRequest): Promise<NextResponse 
       },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
@@ -130,7 +102,5 @@ export async function getApiKeyInfo(apiKey: string) {
   } catch (error) {
     console.error('Erro ao obter informações da API Key:', error);
     return null;
-  } finally {
-    await prisma.$disconnect();
   }
 } 
