@@ -14,23 +14,25 @@ const nextConfig: NextConfig = {
   
   // Configurações experimentais
   experimental: {
-    serverComponentsExternalPackages: ['@prisma/client'],
+    serverComponentsExternalPackages: ['@prisma/client', 'puppeteer', 'handlebars'],
   },
   
   // Configurações de webpack
   webpack: (config, { isServer }) => {
     if (isServer) {
-      config.externals = config.externals || [];
-      config.externals.push({
-        'handlebars': 'commonjs handlebars',
-        'puppeteer': 'commonjs puppeteer'
-      });
+      // Externalize packages for server-side rendering
       config.externals.push('@prisma/client');
+      
+      // Handle Handlebars require.extensions warning
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        handlebars: 'handlebars/dist/handlebars.min.js',
+      };
     }
     
-    // Ignorar warnings do handlebars
+    // Ignore require.extensions warnings
     config.ignoreWarnings = [
-      /require\.extensions is not supported by webpack/,
+      { message: /require\.extensions/ },
     ];
     
     return config;

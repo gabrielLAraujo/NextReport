@@ -1,10 +1,13 @@
 {
   "version": 2,
-  "buildCommand": "npm run build",
+  "buildCommand": "prisma generate && npm run build",
   "outputDirectory": ".next",
   "framework": "nextjs",
   "regions": ["gru1"],
   "functions": {
+    "src/app/api/**/*.ts": {
+      "maxDuration": 30
+    },
     "src/app/api/v1/reports/generate/route.ts": {
       "maxDuration": 30,
       "memory": 1024
@@ -21,7 +24,8 @@
   "env": {
     "NODE_ENV": "production",
     "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD": "true",
-    "PUPPETEER_EXECUTABLE_PATH": "/usr/bin/google-chrome-stable"
+    "PUPPETEER_EXECUTABLE_PATH": "/usr/bin/google-chrome-stable",
+    "PRISMA_CLI_BINARY_TARGETS": "native,rhel-openssl-1.0.x"
   },
   "headers": [
     {
