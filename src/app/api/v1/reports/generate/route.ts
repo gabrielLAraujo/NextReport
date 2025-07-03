@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { requireApiKey } from '@/lib/auth';
 import * as XLSX from 'xlsx';
 import puppeteer from 'puppeteer';
+// Importar Handlebars apenas no servidor
+const Handlebars = require('handlebars');
 
 // Schema de validação para requisições da API
 const generateReportSchema = z.object({
@@ -106,42 +108,231 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Função para processar template
-function processTemplate(htmlContent: string, data: any): string {
-  let processedHtml = htmlContent;
+// Configurar Handlebars com helpers personalizados
+function setupHandlebars() {
+  // Helper para formatação de moeda brasileira
+  Handlebars.registerHelper('currency', function(value: any) {
+    const num = parseFloat(String(value).replace(/[^\d.-]/g, '')) || 0;
+    return new Handlebars.SafeString(`R$ ${num.toLocaleString('pt-BR', { 
+      minimumFractionDigits: 2, 
+      maximumFractionDigits: 2 
+    })}`);
+  });
 
-  // Substituir variáveis simples
-  Object.keys(data).forEach((key) => {
-    if (typeof data[key] !== 'object' || data[key] === null) {
-      const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
-      processedHtml = processedHtml.replace(regex, String(data[key] || ''));
+  // Helper para formatação de números
+  Handlebars.registerHelper('number', function(value: any) {
+    const num = parseFloat(String(value).replace(/[^\d.-]/g, '')) || 0;
+    return new Handlebars.SafeString(num.toLocaleString('pt-BR'));
+  });
+
+  // Helper para formatação de data
+  Handlebars.registerHelper('date', function(value: any, format?: string) {
+    if (!value) return '';
+    
+    let date: Date;
+    if (typeof value === 'string') {
+      date = new Date(value);
+    } else if (value instanceof Date) {
+      date = value;
+    } else {
+      return value;
+    }
+
+    if (isNaN(date.getTime())) return value;
+
+    const formatType = format || 'dd/MM/yyyy';
+    
+    switch (formatType) {
+      case 'dd/MM/yyyy':
+        return new Handlebars.SafeString(date.toLocaleDateString('pt-BR'));
+      case 'dd/MM/yyyy HH:mm':
+        return new Handlebars.SafeString(date.toLocaleString('pt-BR'));
+      case 'long':
+        return new Handlebars.SafeString(date.toLocaleDateString('pt-BR', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        }));
+      default:
+        return new Handlebars.SafeString(date.toLocaleDateString('pt-BR'));
     }
   });
 
-  // Processar loops
-  const eachRegex = /{{#each\s+(\w+)}}([\s\S]*?){{\/each}}/g;
-  processedHtml = processedHtml.replace(eachRegex, (match, arrayName, template) => {
-    const array = data[arrayName];
+  // Helper para formatação de porcentagem
+  Handlebars.registerHelper('percentage', function(value: any, decimals: number = 2) {
+    const num = parseFloat(String(value).replace(/[^\d.-]/g, '')) || 0;
+    return new Handlebars.SafeString(`${(num * 100).toFixed(decimals)}%`);
+  });
+
+  // Helper para texto em maiúsculo
+  Handlebars.registerHelper('upper', function(value: any) {
+    return new Handlebars.SafeString(String(value || '').toUpperCase());
+  });
+
+  // Helper para texto em minúsculo
+  Handlebars.registerHelper('lower', function(value: any) {
+    return new Handlebars.SafeString(String(value || '').toLowerCase());
+  });
+
+  // Helper para capitalizar primeira letra
+  Handlebars.registerHelper('capitalize', function(value: any) {
+    const str = String(value || '');
+    return new Handlebars.SafeString(str.charAt(0).toUpperCase() + str.slice(1).toLowerCase());
+  });
+
+  // Helper para truncar texto
+  Handlebars.registerHelper('truncate', function(value: any, length: number = 50) {
+    const str = String(value || '');
+    if (str.length <= length) return new Handlebars.SafeString(str);
+    return new Handlebars.SafeString(str.substring(0, length) + '...');
+  });
+
+  // Helper para operações matemáticas
+  Handlebars.registerHelper('math', function(lvalue: any, operator: string, rvalue: any) {
+    const left = parseFloat(lvalue) || 0;
+    const right = parseFloat(rvalue) || 0;
+    
+    switch (operator) {
+      case '+': return left + right;
+      case '-': return left - right;
+      case '*': return left * right;
+      case '/': return right !== 0 ? left / right : 0;
+      case '%': return right !== 0 ? left % right : 0;
+      default: return 0;
+    }
+  });
+
+  // Helper para comparações
+  Handlebars.registerHelper('compare', function(this: any, lvalue: any, operator: string, rvalue: any, options: any) {
+    let result = false;
+    
+    switch (operator) {
+      case '==': result = lvalue == rvalue; break;
+      case '===': result = lvalue === rvalue; break;
+      case '!=': result = lvalue != rvalue; break;
+      case '!==': result = lvalue !== rvalue; break;
+      case '<': result = lvalue < rvalue; break;
+      case '>': result = lvalue > rvalue; break;
+      case '<=': result = lvalue <= rvalue; break;
+      case '>=': result = lvalue >= rvalue; break;
+      default: result = false;
+    }
+    
+    return result ? options.fn(this) : options.inverse(this);
+  });
+
+  // Helper para loop com índice
+  Handlebars.registerHelper('eachWithIndex', function(array: any[], options: any) {
     if (!Array.isArray(array)) return '';
-
-    return array.map((item, index) => {
-      let itemTemplate = template;
-      Object.keys(item).forEach((key) => {
-        const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
-        itemTemplate = itemTemplate.replace(regex, String(item[key]));
+    
+    let result = '';
+    for (let i = 0; i < array.length; i++) {
+      result += options.fn({
+        ...array[i],
+        index: i,
+        first: i === 0,
+        last: i === array.length - 1,
+        even: i % 2 === 0,
+        odd: i % 2 === 1
       });
-      itemTemplate = itemTemplate.replace(/{{@index}}/g, String(index));
-      return itemTemplate;
-    }).join('');
+    }
+    return new Handlebars.SafeString(result);
   });
 
-  // Processar condicionais
-  const ifRegex = /{{#if\s+(\w+)}}([\s\S]*?){{\/if}}/g;
-  processedHtml = processedHtml.replace(ifRegex, (match, condition, content) => {
-    return data[condition] ? content : '';
+  // Helper para formatação de telefone brasileiro
+  Handlebars.registerHelper('phone', function(value: any) {
+    const phone = String(value || '').replace(/\D/g, '');
+    if (phone.length === 11) {
+      return new Handlebars.SafeString(`(${phone.substring(0, 2)}) ${phone.substring(2, 7)}-${phone.substring(7)}`);
+    } else if (phone.length === 10) {
+      return new Handlebars.SafeString(`(${phone.substring(0, 2)}) ${phone.substring(2, 6)}-${phone.substring(6)}`);
+    }
+    return new Handlebars.SafeString(phone);
   });
 
-  return processedHtml;
+  // Helper para formatação de CPF
+  Handlebars.registerHelper('cpf', function(value: any) {
+    const cpf = String(value || '').replace(/\D/g, '');
+    if (cpf.length === 11) {
+      return new Handlebars.SafeString(`${cpf.substring(0, 3)}.${cpf.substring(3, 6)}.${cpf.substring(6, 9)}-${cpf.substring(9)}`);
+    }
+    return new Handlebars.SafeString(cpf);
+  });
+
+  // Helper para formatação de CNPJ
+  Handlebars.registerHelper('cnpj', function(value: any) {
+    const cnpj = String(value || '').replace(/\D/g, '');
+    if (cnpj.length === 14) {
+      return new Handlebars.SafeString(`${cnpj.substring(0, 2)}.${cnpj.substring(2, 5)}.${cnpj.substring(5, 8)}/${cnpj.substring(8, 12)}-${cnpj.substring(12)}`);
+    }
+    return new Handlebars.SafeString(cnpj);
+  });
+
+  // Helper para formatação de CEP
+  Handlebars.registerHelper('cep', function(value: any) {
+    const cep = String(value || '').replace(/\D/g, '');
+    if (cep.length === 8) {
+      return new Handlebars.SafeString(`${cep.substring(0, 5)}-${cep.substring(5)}`);
+    }
+    return new Handlebars.SafeString(cep);
+  });
+
+  // Helper para somar valores de array
+  Handlebars.registerHelper('sum', function(array: any[], property?: string) {
+    if (!Array.isArray(array)) return 0;
+    
+    return array.reduce((sum, item) => {
+      const value = property ? item[property] : item;
+      const num = parseFloat(String(value).replace(/[^\d.-]/g, '')) || 0;
+      return sum + num;
+    }, 0);
+  });
+
+  // Helper para média de valores
+  Handlebars.registerHelper('average', function(array: any[], property?: string) {
+    if (!Array.isArray(array) || array.length === 0) return 0;
+    
+    const sum = array.reduce((sum, item) => {
+      const value = property ? item[property] : item;
+      const num = parseFloat(String(value).replace(/[^\d.-]/g, '')) || 0;
+      return sum + num;
+    }, 0);
+    
+    return sum / array.length;
+  });
+
+  // Helper para contagem
+  Handlebars.registerHelper('count', function(array: any[]) {
+    return Array.isArray(array) ? array.length : 0;
+  });
+
+  // Helper para debug (útil para desenvolvimento)
+  Handlebars.registerHelper('debug', function(value: any) {
+    console.log('Handlebars Debug:', value);
+    return '';
+  });
+}
+
+// Função para processar template com Handlebars
+function processTemplate(htmlContent: string, data: any): string {
+  try {
+    // Configurar Handlebars na primeira execução
+    setupHandlebars();
+    
+    // Compilar template
+    const template = Handlebars.compile(htmlContent);
+    
+    // Processar com dados
+    return template(data);
+  } catch (error) {
+    console.error('Erro ao processar template:', error);
+    return `<div style="color: red; padding: 20px; border: 1px solid red;">
+      <h3>Erro no Template</h3>
+      <p>${error instanceof Error ? error.message : 'Erro desconhecido'}</p>
+      <p>Verifique a sintaxe do seu template Handlebars.</p>
+    </div>`;
+  }
 }
 
 // Função para gerar PDF
@@ -227,10 +418,19 @@ async function generateExcel(
   // Criar planilha principal mais organizada
   const mainSheetData = [];
   
-  // Cabeçalho principal
-  mainSheetData.push([title]);
-  mainSheetData.push(['Relatório gerado em:', new Date().toLocaleString('pt-BR')]);
-  mainSheetData.push([]);
+  // Cabeçalho principal com design melhorado
+  mainSheetData.push([title.toUpperCase()]);
+  mainSheetData.push(['']);
+  mainSheetData.push(['📊 RELATÓRIO DETALHADO']);
+  mainSheetData.push(['Gerado em:', new Date().toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit', 
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })]);
+  mainSheetData.push(['']);
 
   // Separar dados por tipo
   const simpleData: [string, any][] = [];
@@ -247,43 +447,79 @@ async function generateExcel(
     }
   });
 
-  // Adicionar dados simples na planilha principal
+  // Seção de informações gerais melhorada
   if (simpleData.length > 0) {
-    mainSheetData.push(['INFORMAÇÕES GERAIS']);
-    mainSheetData.push(['Campo', 'Valor']);
+    mainSheetData.push(['📋 INFORMAÇÕES GERAIS']);
+    mainSheetData.push(['']);
+    mainSheetData.push(['Campo', 'Valor', 'Tipo']);
     simpleData.forEach(([key, value]) => {
-      mainSheetData.push([formatFieldName(key), formatValue(value)]);
+      mainSheetData.push([
+        formatFieldName(key), 
+        formatValue(value),
+        getDataType(value)
+      ]);
     });
-    mainSheetData.push([]);
+    mainSheetData.push(['']);
+    
+    // Adicionar estatísticas básicas
+    const numericValues = simpleData.filter(([_, value]) => !isNaN(Number(value))).map(([_, value]) => Number(value));
+    if (numericValues.length > 0) {
+      mainSheetData.push(['📊 ESTATÍSTICAS NUMÉRICAS']);
+      mainSheetData.push(['']);
+      mainSheetData.push(['Métrica', 'Valor']);
+      mainSheetData.push(['Total de campos numéricos', numericValues.length]);
+      mainSheetData.push(['Soma total', numericValues.reduce((a, b) => a + b, 0).toFixed(2)]);
+      mainSheetData.push(['Média', (numericValues.reduce((a, b) => a + b, 0) / numericValues.length).toFixed(2)]);
+      mainSheetData.push(['Valor máximo', Math.max(...numericValues).toFixed(2)]);
+      mainSheetData.push(['Valor mínimo', Math.min(...numericValues).toFixed(2)]);
+      mainSheetData.push(['']);
+    }
   }
 
-  // Adicionar objetos simples na planilha principal
+  // Seção de dados estruturados melhorada
   if (objectData.length > 0) {
-    mainSheetData.push(['DADOS ESTRUTURADOS']);
+    mainSheetData.push(['🏗️ DADOS ESTRUTURADOS']);
+    mainSheetData.push(['']);
     objectData.forEach(([key, obj]) => {
-      mainSheetData.push([formatFieldName(key)]);
+      mainSheetData.push([`📁 ${formatFieldName(key)}`]);
+      mainSheetData.push(['Propriedade', 'Valor', 'Tipo']);
       Object.entries(obj).forEach(([subKey, subValue]) => {
-        mainSheetData.push(['  ' + formatFieldName(subKey), formatValue(subValue)]);
+        mainSheetData.push([
+          formatFieldName(subKey), 
+          formatValue(subValue),
+          getDataType(subValue)
+        ]);
       });
-      mainSheetData.push([]);
+      mainSheetData.push(['']);
     });
   }
 
-  // Resumo de arrays
+  // Resumo de arrays melhorado
   if (arrayData.length > 0) {
-    mainSheetData.push(['RESUMO DE LISTAS']);
-    mainSheetData.push(['Lista', 'Quantidade de Itens']);
+    mainSheetData.push(['📋 RESUMO DE LISTAS']);
+    mainSheetData.push(['']);
+    mainSheetData.push(['Lista', 'Quantidade', 'Tipo de Dados', 'Amostra']);
     arrayData.forEach(([key, arr]) => {
-             mainSheetData.push([formatFieldName(key), arr.length.toString()]);
+      const sample = arr.length > 0 ? 
+        (typeof arr[0] === 'object' ? 
+          Object.keys(arr[0]).join(', ') : 
+          String(arr[0])) : 'Vazio';
+      mainSheetData.push([
+        formatFieldName(key), 
+        arr.length,
+        arr.length > 0 ? getDataType(arr[0]) : 'Indefinido',
+        sample
+      ]);
     });
+    mainSheetData.push(['']);
   }
 
   // Criar planilha principal com formatação
   const mainSheet = XLSX.utils.aoa_to_sheet(mainSheetData);
   
-  // Aplicar formatação à planilha principal
-  formatSheet(mainSheet, mainSheetData);
-  XLSX.utils.book_append_sheet(wb, mainSheet, 'Resumo');
+  // Aplicar formatação avançada à planilha principal
+  formatSheetAdvanced(mainSheet, mainSheetData);
+  XLSX.utils.book_append_sheet(wb, mainSheet, '📊 Resumo Executivo');
 
   // Criar planilhas separadas para cada array
   arrayData.forEach(([key, arr]) => {
@@ -358,6 +594,23 @@ async function generateExcel(
   return Buffer.from(buffer);
 }
 
+// Função para determinar o tipo de dados
+function getDataType(value: any): string {
+  if (value === null || value === undefined) return 'Nulo';
+  if (typeof value === 'boolean') return 'Booleano';
+  if (typeof value === 'number') return 'Número';
+  if (typeof value === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}/.test(value)) return 'Data';
+    if (/^\d+(\.\d+)?$/.test(value)) return 'Número (texto)';
+    if (value.includes('@')) return 'Email';
+    if (value.length > 100) return 'Texto longo';
+    return 'Texto';
+  }
+  if (Array.isArray(value)) return `Array (${value.length} itens)`;
+  if (typeof value === 'object') return 'Objeto';
+  return 'Desconhecido';
+}
+
 // Função auxiliar para formatar nomes de campos
 function formatFieldName(name: string): string {
   return name
@@ -385,6 +638,121 @@ function formatValue(value: any): string {
   }
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
+}
+
+// Função de formatação avançada para planilhas
+function formatSheetAdvanced(sheet: any, data: any[][]) {
+  const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1');
+  
+  // Definir larguras das colunas de forma mais inteligente
+  const colWidths = [];
+  for (let col = range.s.c; col <= range.e.c; col++) {
+    let maxWidth = 12;
+    for (let row = range.s.r; row <= range.e.r; row++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+      const cell = sheet[cellAddress];
+      if (cell && cell.v) {
+        const cellLength = String(cell.v).length;
+        maxWidth = Math.max(maxWidth, cellLength + 4);
+      }
+    }
+    colWidths.push({ wch: Math.min(maxWidth, 60) });
+  }
+  sheet['!cols'] = colWidths;
+
+  // Aplicar formatação às células com design moderno
+  for (let row = range.s.r; row <= range.e.r; row++) {
+    for (let col = range.s.c; col <= range.e.c; col++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+      const cell = sheet[cellAddress];
+      
+      if (cell) {
+        const cellValue = String(cell.v || '');
+        
+        // Título principal
+        if (row === 0) {
+          cell.s = {
+            font: { bold: true, size: 16, color: { rgb: 'FFFFFF' } },
+            fill: { fgColor: { rgb: '1F4E79' } },
+            alignment: { horizontal: 'center', vertical: 'center' }
+          };
+        }
+        // Subtítulo com emoji
+        else if (cellValue.includes('📊 RELATÓRIO')) {
+          cell.s = {
+            font: { bold: true, size: 14, color: { rgb: '1F4E79' } },
+            fill: { fgColor: { rgb: 'E7F3FF' } },
+            alignment: { horizontal: 'center' }
+          };
+        }
+        // Seções principais (com emojis)
+        else if (cellValue.includes('📋') || cellValue.includes('🏗️') || cellValue.includes('📊')) {
+          cell.s = {
+            font: { bold: true, size: 12, color: { rgb: 'FFFFFF' } },
+            fill: { fgColor: { rgb: '2E8B57' } },
+            alignment: { horizontal: 'left', vertical: 'center' }
+          };
+        }
+        // Cabeçalhos de tabela
+        else if ((cellValue === 'Campo' || cellValue === 'Lista' || cellValue === 'Propriedade' || cellValue === 'Métrica') && col === 0) {
+          cell.s = {
+            font: { bold: true, color: { rgb: '1F4E79' } },
+            fill: { fgColor: { rgb: 'B4D7FF' } },
+            alignment: { horizontal: 'center' },
+            border: {
+              top: { style: 'medium', color: { rgb: '1F4E79' } },
+              bottom: { style: 'medium', color: { rgb: '1F4E79' } },
+              left: { style: 'thin', color: { rgb: '1F4E79' } },
+              right: { style: 'thin', color: { rgb: '1F4E79' } }
+            }
+          };
+        }
+        // Outras células de cabeçalho
+        else if (data[row] && data[row][0] && 
+                 (data[row][0] === 'Campo' || data[row][0] === 'Lista' || data[row][0] === 'Propriedade' || data[row][0] === 'Métrica')) {
+          cell.s = {
+            font: { bold: true, color: { rgb: '1F4E79' } },
+            fill: { fgColor: { rgb: 'B4D7FF' } },
+            alignment: { horizontal: 'center' },
+            border: {
+              top: { style: 'medium', color: { rgb: '1F4E79' } },
+              bottom: { style: 'medium', color: { rgb: '1F4E79' } },
+              left: { style: 'thin', color: { rgb: '1F4E79' } },
+              right: { style: 'thin', color: { rgb: '1F4E79' } }
+            }
+          };
+        }
+        // Dados com formatação alternada
+        else if (row > 0 && cellValue !== '' && !cellValue.includes('📁')) {
+          const isEvenRow = row % 2 === 0;
+          cell.s = {
+            fill: { fgColor: { rgb: isEvenRow ? 'F8F9FA' : 'FFFFFF' } },
+            border: {
+              top: { style: 'thin', color: { rgb: 'E0E0E0' } },
+              bottom: { style: 'thin', color: { rgb: 'E0E0E0' } },
+              left: { style: 'thin', color: { rgb: 'E0E0E0' } },
+              right: { style: 'thin', color: { rgb: 'E0E0E0' } }
+            },
+            alignment: { vertical: 'center' }
+          };
+          
+          // Formatação especial para números
+          if (!isNaN(Number(cellValue)) && cellValue !== '') {
+            cell.s.alignment = { horizontal: 'right', vertical: 'center' };
+            cell.s.numFmt = '#,##0.00';
+          }
+        }
+        // Subseções com pasta
+        else if (cellValue.includes('📁')) {
+          cell.s = {
+            font: { bold: true, italic: true, color: { rgb: '4A90E2' } },
+            fill: { fgColor: { rgb: 'F0F8FF' } },
+            alignment: { horizontal: 'left' }
+          };
+        }
+      }
+    }
+  }
 }
 
 // Função auxiliar para aplicar formatação às planilhas
