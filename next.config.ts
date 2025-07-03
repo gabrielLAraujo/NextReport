@@ -13,6 +13,8 @@ const nextConfig: NextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['puppeteer-core'],
   },
+  // Configurações adicionais para produção
+  output: 'standalone',
 };
 
 export default nextConfig;
