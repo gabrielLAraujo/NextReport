@@ -18,8 +18,9 @@ export function TextArea({
           style={{
             display: "block",
             marginBottom: "8px",
-            fontWeight: 500,
-            color: "#2c3e50",
+            fontWeight: 600,
+            color: "#1a1a1a",
+            fontSize: "15px",
           }}
         >
           {label}
@@ -33,19 +34,22 @@ export function TextArea({
           border: `2px solid ${error ? "#e74c3c" : "#e0e0e0"}`,
           borderRadius: "6px",
           fontFamily: "Consolas, Monaco, monospace",
-          fontSize: "13px",
+          fontSize: "14px",
           resize: "none",
-          backgroundColor: "#fafafa",
-          color: "#2c3e50",
-          lineHeight: "1.4",
+          backgroundColor: "#ffffff",
+          color: "#1a1a1a",
+          lineHeight: "1.5",
           outline: "none",
           transition: "border-color 0.3s ease",
+          fontWeight: "500",
         }}
         onFocus={(e) => {
           e.target.style.borderColor = "#3498db";
+          e.target.style.backgroundColor = "#f8f9fa";
         }}
         onBlur={(e) => {
           e.target.style.borderColor = error ? "#e74c3c" : "#e0e0e0";
+          e.target.style.backgroundColor = "#ffffff";
         }}
         {...props}
       />

@@ -10,6 +10,24 @@ export function ReportGeneratorTemplate({
   return (
     <>
       <style jsx global>{`
+        /* Reset para textareas */
+        textarea {
+          color: #000000 !important;
+          font-weight: 400 !important;
+          -webkit-text-fill-color: #000000 !important;
+        }
+
+        textarea::placeholder {
+          color: #6b7280 !important;
+          opacity: 1 !important;
+        }
+
+        textarea:focus {
+          color: #000000 !important;
+          -webkit-text-fill-color: #000000 !important;
+        }
+
+        /* Responsividade */
         @media (max-width: 1200px) {
           .main-grid {
             grid-template-columns: 1fr !important;

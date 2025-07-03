@@ -26,6 +26,7 @@ export function TemplateEditor({
         gap: "20px",
         height: "fit-content",
         minHeight: "calc(100vh - 200px)",
+        width: "100%",
       }}
     >
       {/* Template HTML */}
@@ -36,6 +37,8 @@ export function TemplateEditor({
           flexDirection: "column",
           minHeight: "300px",
           maxHeight: "400px",
+          width: "100%",
+          padding: "20px",
         }}
       >
         <FormField
@@ -44,6 +47,7 @@ export function TemplateEditor({
           onChange={onTemplateChange}
           placeholder="Digite seu template HTML aqui..."
           rows={10}
+          language="html"
         />
       </Card>
 
@@ -55,6 +59,8 @@ export function TemplateEditor({
           flexDirection: "column",
           minHeight: "200px",
           maxHeight: "250px",
+          width: "100%",
+          padding: "20px",
         }}
       >
         <FormField
@@ -63,6 +69,7 @@ export function TemplateEditor({
           onChange={onCssChange}
           placeholder="Estilos CSS..."
           rows={6}
+          language="css"
         />
       </Card>
 
@@ -74,6 +81,8 @@ export function TemplateEditor({
           flexDirection: "column",
           minHeight: "300px",
           maxHeight: "400px",
+          width: "100%",
+          padding: "20px",
         }}
       >
         <FormField
@@ -82,6 +91,7 @@ export function TemplateEditor({
           onChange={onJsonChange}
           placeholder="Cole seus dados JSON aqui..."
           rows={10}
+          language="json"
         />
       </Card>
     </div>
