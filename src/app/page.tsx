@@ -311,14 +311,14 @@ tr:hover {
       };
 
       // 1. Processar condicionais {{#if condition}}...{{/if}}
-      html = html.replace(/\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (match, condition, content) => {
+      html = html.replace(/\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (match: string, condition: string, content: string) => {
         const conditionValue = data[condition];
         console.log(`Processando condicional: ${condition} = ${conditionValue}`);
         return conditionValue ? content : "";
       });
 
       // 2. Processar loops {{#eachWithIndex array}}...{{/eachWithIndex}}
-      html = html.replace(/\{\{#eachWithIndex\s+(\w+)\}\}([\s\S]*?)\{\{\/eachWithIndex\}\}/g, (match, arrayName, template) => {
+      html = html.replace(/\{\{#eachWithIndex\s+(\w+)\}\}([\s\S]*?)\{\{\/eachWithIndex\}\}/g, (match: string, arrayName: string, template: string) => {
         const array = data[arrayName];
         if (!Array.isArray(array)) return "";
 
@@ -327,12 +327,12 @@ tr:hover {
           
           // Processar condicionais even/odd
           itemHtml = itemHtml.replace(/\{\{#if\s+even\}\}([\s\S]*?)\{\{else\}\}([\s\S]*?)\{\{\/if\}\}/g, 
-            (condMatch, evenContent, oddContent) => {
+            (condMatch: string, evenContent: string, oddContent: string) => {
               return index % 2 === 0 ? evenContent : oddContent;
             });
           
           // Processar condicionais simples dentro do loop
-          itemHtml = itemHtml.replace(/\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (condMatch, condition, content) => {
+          itemHtml = itemHtml.replace(/\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (condMatch: string, condition: string, content: string) => {
             if (condition === 'even') {
               return index % 2 === 0 ? content : "";
             } else if (condition === 'odd') {
@@ -345,7 +345,7 @@ tr:hover {
           itemHtml = itemHtml.replace(/\{\{index\}\}/g, String(index));
           
           // Processar {{math index "+" 1}}
-          itemHtml = itemHtml.replace(/\{\{math\s+(\w+)\s+"([+\-*/])"\s+(\d+)\}\}/g, (mathMatch, a, op, b) => {
+          itemHtml = itemHtml.replace(/\{\{math\s+(\w+)\s+"([+\-*/])"\s+(\d+)\}\}/g, (mathMatch: string, a: string, op: string, b: string) => {
             const numA = a === 'index' ? index : (item[a] || 0);
             const numB = parseInt(b);
             
@@ -383,7 +383,7 @@ tr:hover {
       });
 
       // 3. Processar loops simples {{#each array}}...{{/each}}
-      html = html.replace(/\{\{#each\s+(\w+)\}\}([\s\S]*?)\{\{\/each\}\}/g, (match, arrayName, template) => {
+      html = html.replace(/\{\{#each\s+(\w+)\}\}([\s\S]*?)\{\{\/each\}\}/g, (match: string, arrayName: string, template: string) => {
         const array = data[arrayName];
         if (!Array.isArray(array)) return "";
 
@@ -413,7 +413,7 @@ tr:hover {
           typeof value === 'string' ? capitalize(value) : String(value));
         
         // {{date key "format"}}
-        html = html.replace(new RegExp(`\\{\\{date\\s+${key}(?:\\s+"([^"]+)")?\\}\\}`, 'g'), (match, format) => {
+        html = html.replace(new RegExp(`\\{\\{date\\s+${key}(?:\\s+"([^"]+)")?\\}\\}`, 'g'), (match: string, format?: string) => {
           return typeof value === 'string' ? formatDate(value, format) : String(value);
         });
         
