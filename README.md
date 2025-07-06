@@ -1,163 +1,163 @@
-# 📊 NextReport - Gerador de Relatórios
+# 📊 NextReport - Report Generator
 
-**NextReport** é um serviço completo de geração de relatórios que permite criar documentos em PDF, XLSX e XLS através de templates HTML personalizáveis e dados JSON.
+**NextReport** is a complete report generation service that allows creating PDF, XLSX and XLS documents through customizable HTML templates and JSON data.
 
-## 🚀 **Demo Online**
+## 🚀 **Live Demo**
 
 🔗 **[https://nextreport.vercel.app](https://nextreport.vercel.app)**
 
-## ✨ **Características Principais**
+## ✨ **Key Features**
 
-- 📝 **Templates HTML**: Crie templates personalizados com sintaxe Handlebars-like
-- 📊 **Múltiplos Formatos**: Gere relatórios em PDF, XLSX e XLS
-- 🔍 **Preview em Tempo Real**: Veja o resultado antes de gerar
-- 🎨 **CSS Personalizado**: Estilize seus relatórios como desejar
-- 🔐 **API Externa**: Use como serviço através de API Keys
-- 📖 **Documentação Completa**: Interface visual e Swagger UI
-- ⚡ **Processamento Rápido**: Geração otimizada de documentos
+- 📝 **HTML Templates**: Create custom templates with Handlebars-like syntax
+- 📊 **Multiple Formats**: Generate reports in PDF, XLSX and XLS
+- 🔍 **Real-time Preview**: See the result before generating
+- 🎨 **Custom CSS**: Style your reports as desired
+- 🔐 **External API**: Use as a service through API Keys
+- 📖 **Complete Documentation**: Visual interface and Swagger UI
+- ⚡ **Fast Processing**: Optimized document generation
 
-## 🛠️ **Tecnologias Utilizadas**
+## 🛠️ **Technologies Used**
 
-- **Next.js 15** - Framework React
-- **TypeScript** - Tipagem estática
-- **Tailwind CSS** - Estilização
-- **Puppeteer** - Geração de PDF
-- **XLSX** - Geração de planilhas Excel
-- **Prisma** - ORM para banco de dados
-- **Zod** - Validação de dados
-- **Vercel** - Deploy e hospedagem
+- **Next.js 15** - React Framework
+- **TypeScript** - Static typing
+- **Tailwind CSS** - Styling
+- **Puppeteer** - PDF generation
+- **XLSX** - Excel spreadsheet generation
+- **Prisma** - Database ORM
+- **Zod** - Data validation
+- **Vercel** - Deployment and hosting
 
-## 📋 **Como Usar**
+## 📋 **How to Use**
 
-### Interface Web
-1. Acesse [https://nextreport.vercel.app](https://nextreport.vercel.app)
-2. Digite seu template HTML na área esquerda
-3. Adicione dados JSON
-4. Veja o preview em tempo real
-5. Clique em **PDF**, **XLSX** ou **XLS** para gerar
+### Web Interface
+1. Access [https://nextreport.vercel.app](https://nextreport.vercel.app)
+2. Enter your HTML template in the left area
+3. Add JSON data
+4. See real-time preview
+5. Click **PDF**, **XLSX** or **XLS** to generate
 
-### API Externa
+### External API
 ```bash
 curl -X POST https://nextreport.vercel.app/api/v1/reports/generate \
   -H "Content-Type: application/json" \
   -H "X-API-Key: nxr_demo_key_123456789" \
   -d '{
-    "title": "Meu Relatório",
+    "title": "My Report",
     "format": "pdf",
-    "data": {"nome": "João", "idade": 30},
-    "template": "<h1>Olá {{nome}}, você tem {{idade}} anos!</h1>",
+    "data": {"name": "John", "age": 30},
+    "template": "<h1>Hello {{name}}, you are {{age}} years old!</h1>",
     "styles": "h1 { color: blue; }"
   }'
 ```
 
-## 🔧 **Instalação Local**
+## 🔧 **Local Installation**
 
 ```bash
-# Clone o repositório
-git clone https://github.com/seu-usuario/nextreport.git
+# Clone the repository
+git clone https://github.com/your-username/nextreport.git
 cd nextreport
 
-# Instale as dependências
+# Install dependencies
 npm install
 
-# Configure as variáveis de ambiente
+# Configure environment variables
 cp .env.example .env.local
 
-# Execute o projeto
+# Run the project
 npm run dev
 ```
 
-## 📚 **Documentação**
+## 📚 **Documentation**
 
-- **[Documentação Completa](https://nextreport.vercel.app/docs)** - Guia completo de uso
-- **[Swagger UI](https://nextreport.vercel.app/swagger)** - Interface interativa da API
+- **[Complete Documentation](https://nextreport.vercel.app/docs)** - Complete usage guide
+- **[Swagger UI](https://nextreport.vercel.app/swagger)** - Interactive API interface
 
-## 🔐 **Autenticação**
+## 🔐 **Authentication**
 
-Para usar a API, você precisa de uma API Key:
+To use the API, you need an API Key:
 
 ```bash
-# Chave de demonstração
+# Demo key
 X-API-Key: nxr_demo_key_123456789
 
-# Ou via Authorization header
+# Or via Authorization header
 Authorization: Bearer nxr_demo_key_123456789
 ```
 
-## 📄 **Sintaxe de Templates**
+## 📄 **Template Syntax**
 
 ```html
-<!-- Variáveis simples -->
-<h1>{{titulo}}</h1>
-<p>{{descricao}}</p>
+<!-- Simple variables -->
+<h1>{{title}}</h1>
+<p>{{description}}</p>
 
 <!-- Loops -->
-{{#each itens}}
-  <div>{{nome}} - {{valor}}</div>
+{{#each items}}
+  <div>{{name}} - {{value}}</div>
 {{/each}}
 
-<!-- Condicionais -->
-{{#if mostrarSecao}}
-  <div>Esta seção é condicional</div>
+<!-- Conditionals -->
+{{#if showSection}}
+  <div>This section is conditional</div>
 {{/if}}
 
-<!-- Índice em loops -->
-{{#each produtos}}
-  <p>{{@index}}. {{nome}}</p>
+<!-- Index in loops -->
+{{#each products}}
+  <p>{{@index}}. {{name}}</p>
 {{/each}}
 ```
 
-## 🎨 **Exemplos de Uso**
+## 🎨 **Usage Examples**
 
-### Relatório de Vendas
+### Sales Report
 ```json
 {
-  "titulo": "Relatório de Vendas",
-  "data": "2024-01-15",
-  "vendas": [
-    {"produto": "Notebook", "quantidade": 2, "valor": 2500.00},
-    {"produto": "Mouse", "quantidade": 10, "valor": 25.00}
+  "title": "Sales Report",
+  "date": "2024-01-15",
+  "sales": [
+    {"product": "Laptop", "quantity": 2, "value": 2500.00},
+    {"product": "Mouse", "quantity": 10, "value": 25.00}
   ],
   "total": 2750.00
 }
 ```
 
-### Certificado
+### Certificate
 ```html
-<div class="certificado">
-  <h1>Certificado de Conclusão</h1>
-  <p>Certificamos que <strong>{{nome}}</strong> concluiu o curso de <strong>{{curso}}</strong>.</p>
-  <p>Data: {{data}}</p>
-  <p>Carga Horária: {{cargaHoraria}} horas</p>
+<div class="certificate">
+  <h1>Certificate of Completion</h1>
+  <p>We certify that <strong>{{name}}</strong> has completed the <strong>{{course}}</strong> course.</p>
+  <p>Date: {{date}}</p>
+  <p>Workload: {{workload}} hours</p>
 </div>
 ```
 
-## 🌟 **Recursos Avançados**
+## 🌟 **Advanced Features**
 
-- **Formatação Automática**: Planilhas Excel com formatação profissional
-- **Múltiplas Planilhas**: Dados organizados automaticamente
-- **Totais Automáticos**: Cálculos automáticos em campos numéricos
-- **Validação Completa**: Validação de dados com Zod
-- **Tratamento de Erros**: Mensagens de erro detalhadas
+- **Automatic Formatting**: Excel spreadsheets with professional formatting
+- **Multiple Sheets**: Data automatically organized
+- **Automatic Totals**: Automatic calculations in numeric fields
+- **Complete Validation**: Data validation with Zod
+- **Error Handling**: Detailed error messages
 
-## 🤝 **Contribuindo**
+## 🤝 **Contributing**
 
-1. Faça um fork do projeto
-2. Crie uma branch para sua feature (`git checkout -b feature/nova-feature`)
-3. Commit suas mudanças (`git commit -m 'Adiciona nova feature'`)
-4. Push para a branch (`git push origin feature/nova-feature`)
-5. Abra um Pull Request
+1. Fork the project
+2. Create a branch for your feature (`git checkout -b feature/new-feature`)
+3. Commit your changes (`git commit -m 'Add new feature'`)
+4. Push to the branch (`git push origin feature/new-feature`)
+5. Open a Pull Request
 
-## 📝 **Licença**
+## 📝 **License**
 
-Este projeto está sob a licença ISC. Veja o arquivo `LICENSE` para mais detalhes.
+This project is under the ISC license. See the `LICENSE` file for more details.
 
-## 🆘 **Suporte**
+## 🆘 **Support**
 
-- **Documentação**: [https://nextreport.vercel.app/docs](https://nextreport.vercel.app/docs)
-- **Issues**: [GitHub Issues](https://github.com/seu-usuario/nextreport/issues)
+- **Documentation**: [https://nextreport.vercel.app/docs](https://nextreport.vercel.app/docs)
+- **Issues**: [GitHub Issues](https://github.com/your-username/nextreport/issues)
 - **API Reference**: [https://nextreport.vercel.app/swagger](https://nextreport.vercel.app/swagger)
 
 ---
 
-**Feito com ❤️ usando Next.js e TypeScript**
+**Made with ❤️ using Next.js and TypeScript**

@@ -8,21 +8,47 @@ export async function requireApiKey(request: NextRequest): Promise<NextResponse 
     const origin = request.headers.get('origin');
     const referer = request.headers.get('referer');
     const userAgent = request.headers.get('user-agent');
+    const host = request.headers.get('host');
+    const forwardedHost = request.headers.get('x-forwarded-host');
+    
+    // Obter URL da requisição
+    const url = new URL(request.url);
     
     // Permitir requisições locais sem autenticação
     const isLocalRequest = 
       // Requisições do mesmo domínio (localhost ou domínio de produção)
-      (origin && (origin.includes('localhost') || origin.includes('127.0.0.1'))) ||
-      (referer && (referer.includes('localhost') || referer.includes('127.0.0.1'))) ||
+      (origin && (origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('nextreport.vercel.app'))) ||
+      (referer && (referer.includes('localhost') || referer.includes('127.0.0.1') || referer.includes('nextreport.vercel.app'))) ||
       // Requisições internas do Next.js
       (userAgent && userAgent.includes('Next.js')) ||
-      // Requisições sem origin (internas)
-      (!origin && !referer);
+      // Requisições sem origin (internas) ou do mesmo host
+      (!origin && !referer) ||
+      // Requisições do frontend da própria aplicação
+      (host === 'nextreport.vercel.app') ||
+      (forwardedHost === 'nextreport.vercel.app') ||
+      // Requisições do próprio domínio
+      (url.hostname === 'nextreport.vercel.app') ||
+      (url.hostname === 'localhost') ||
+      (url.hostname === '127.0.0.1');
     
     if (isLocalRequest) {
-      console.log('🔓 Requisição local permitida sem API Key');
+      console.log('🔓 Requisição local permitida sem API Key', {
+        origin,
+        referer,
+        host,
+        forwardedHost,
+        hostname: url.hostname
+      });
       return null;
     }
+    
+    console.log('🔒 Requisição externa detectada, verificando API Key', {
+      origin,
+      referer,
+      host,
+      forwardedHost,
+      hostname: url.hostname
+    });
     
     const apiKey = request.headers.get('X-API-Key') || request.headers.get('Authorization')?.replace('Bearer ', '');
     
@@ -31,7 +57,14 @@ export async function requireApiKey(request: NextRequest): Promise<NextResponse 
         { 
           error: 'API Key obrigatória',
           message: 'Inclua sua API Key no header "X-API-Key" ou "Authorization: Bearer <key>"',
-          documentation: '/docs'
+          documentation: '/docs',
+          debug: {
+            origin,
+            referer,
+            host,
+            forwardedHost,
+            hostname: url.hostname
+          }
         },
         { status: 401 }
       );
