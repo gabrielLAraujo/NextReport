@@ -14,14 +14,14 @@ const nextConfig: NextConfig = {
   
   // Configurações experimentais
   experimental: {
-    serverComponentsExternalPackages: ['@prisma/client', 'puppeteer', 'handlebars'],
+    serverComponentsExternalPackages: ['@prisma/client', 'puppeteer', 'handlebars', '@sparticuz/chromium'],
   },
   
   // Configurações de webpack
   webpack: (config, { isServer }) => {
     if (isServer) {
       // Externalize packages for server-side rendering
-      config.externals.push('@prisma/client');
+      config.externals.push('@prisma/client', '@sparticuz/chromium');
       
       // Handle Handlebars require.extensions warning
       config.resolve.alias = {

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireApiKey } from '@/lib/auth';
 import * as XLSX from 'xlsx';
 import puppeteer from 'puppeteer';
+import chromium from '@sparticuz/chromium';
 import Handlebars from 'handlebars';
 
 // Schema de validação para requisições da API
@@ -341,21 +342,57 @@ async function generatePDF(
   options: any,
   title: string
 ): Promise<Buffer> {
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
-      '--single-process',
-      '--disable-gpu',
-      '--disable-web-security',
-      '--disable-features=VizDisplayCompositor'
-    ],
-  });
+  let browser;
+  
+  // Detectar ambiente: Vercel vs Local
+  const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
+  
+  if (isVercel) {
+    // Configuração para Vercel com Chromium otimizado
+    try {
+      browser = await puppeteer.launch({
+        args: [
+          ...chromium.args,
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--single-process',
+          '--disable-gpu',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor'
+        ],
+        defaultViewport: { width: 1920, height: 1080 },
+        executablePath: await chromium.executablePath(),
+        headless: true,
+      });
+    } catch (error) {
+      console.error('Erro ao usar Chromium na Vercel:', error);
+      throw new Error('Erro ao inicializar navegador na Vercel. Tente novamente.');
+    }
+  } else {
+    // Configuração para ambiente local (desenvolvimento)
+    try {
+      browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--disable-gpu',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor'
+        ],
+      });
+    } catch (error) {
+      console.error('Erro ao inicializar Puppeteer local:', error);
+      throw new Error('Não foi possível inicializar o navegador para geração de PDF. Verifique se o Chrome está instalado.');
+    }
+  }
 
   try {
     const page = await browser.newPage();

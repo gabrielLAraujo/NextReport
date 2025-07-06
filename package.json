@@ -25,6 +25,7 @@
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
     "@prisma/client": "^5.22.0",
+    "@sparticuz/chromium": "^137.0.1",
     "@tailwindcss/postcss": "^4.1.11",
     "@types/handlebars": "^4.0.40",
     "@types/node": "^24.0.10",
