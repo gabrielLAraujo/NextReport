@@ -471,7 +471,7 @@ export function useReportGenerator() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-API-Key": "nxr_demo_key_123456789",
+          // Não precisa de API Key para requisições locais
         },
         body: JSON.stringify({
           title: "Relatório Gerado",

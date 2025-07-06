@@ -4,13 +4,33 @@ import { prisma } from './prisma';
 // Middleware para validar API Key
 export async function requireApiKey(request: NextRequest): Promise<NextResponse | null> {
   try {
-    const apiKey = request.headers.get('X-API-Key');
+    // Verificar se é uma requisição local do próprio projeto
+    const origin = request.headers.get('origin');
+    const referer = request.headers.get('referer');
+    const userAgent = request.headers.get('user-agent');
+    
+    // Permitir requisições locais sem autenticação
+    const isLocalRequest = 
+      // Requisições do mesmo domínio (localhost ou domínio de produção)
+      (origin && (origin.includes('localhost') || origin.includes('127.0.0.1'))) ||
+      (referer && (referer.includes('localhost') || referer.includes('127.0.0.1'))) ||
+      // Requisições internas do Next.js
+      (userAgent && userAgent.includes('Next.js')) ||
+      // Requisições sem origin (internas)
+      (!origin && !referer);
+    
+    if (isLocalRequest) {
+      console.log('🔓 Requisição local permitida sem API Key');
+      return null;
+    }
+    
+    const apiKey = request.headers.get('X-API-Key') || request.headers.get('Authorization')?.replace('Bearer ', '');
     
     if (!apiKey) {
       return NextResponse.json(
         { 
           error: 'API Key obrigatória',
-          message: 'Inclua sua API Key no header "X-API-Key"',
+          message: 'Inclua sua API Key no header "X-API-Key" ou "Authorization: Bearer <key>"',
           documentation: '/docs'
         },
         { status: 401 }
@@ -67,6 +87,7 @@ export async function requireApiKey(request: NextRequest): Promise<NextResponse 
       },
     });
 
+    console.log('🔑 API Key externa validada com sucesso');
     // API Key válida
     return null;
 
