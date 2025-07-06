@@ -16,20 +16,22 @@ export async function requireApiKey(request: NextRequest): Promise<NextResponse 
     
     // Permitir requisições locais sem autenticação
     const isLocalRequest = 
-      // Requisições do mesmo domínio (localhost ou domínio de produção)
-      (origin && (origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('nextreport.vercel.app'))) ||
-      (referer && (referer.includes('localhost') || referer.includes('127.0.0.1') || referer.includes('nextreport.vercel.app'))) ||
+      // Requisições do mesmo domínio (localhost ou qualquer domínio Vercel)
+      (origin && (origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('vercel.app'))) ||
+      (referer && (referer.includes('localhost') || referer.includes('127.0.0.1') || referer.includes('vercel.app'))) ||
       // Requisições internas do Next.js
       (userAgent && userAgent.includes('Next.js')) ||
       // Requisições sem origin (internas) ou do mesmo host
       (!origin && !referer) ||
-      // Requisições do frontend da própria aplicação
-      (host === 'nextreport.vercel.app') ||
-      (forwardedHost === 'nextreport.vercel.app') ||
+      // Requisições do frontend da própria aplicação (qualquer domínio Vercel)
+      (host && host.includes('vercel.app')) ||
+      (forwardedHost && forwardedHost.includes('vercel.app')) ||
       // Requisições do próprio domínio
-      (url.hostname === 'nextreport.vercel.app') ||
+      (url.hostname.includes('vercel.app')) ||
       (url.hostname === 'localhost') ||
-      (url.hostname === '127.0.0.1');
+      (url.hostname === '127.0.0.1') ||
+      // Verificação adicional: se origin e host são o mesmo domínio
+      (origin && host && origin.includes(host));
     
     if (isLocalRequest) {
       console.log('🔓 Requisição local permitida sem API Key', {
