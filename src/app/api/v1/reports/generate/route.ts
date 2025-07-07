@@ -347,31 +347,62 @@ async function generatePDF(
   // Detectar ambiente: Vercel vs Local
   const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
   
-  if (isVercel) {
-    // Configuração para Vercel com Chromium otimizado
-    try {
-      browser = await puppeteer.launch({
-        args: [
-          ...chromium.args,
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--single-process',
-          '--disable-gpu',
-          '--disable-web-security',
-          '--disable-features=VizDisplayCompositor'
-        ],
-        defaultViewport: { width: 1920, height: 1080 },
-        executablePath: await chromium.executablePath(),
-        headless: true,
-      });
-    } catch (error) {
-      console.error('Erro ao usar Chromium na Vercel:', error);
-      throw new Error('Erro ao inicializar navegador na Vercel. Tente novamente.');
-    }
+      if (isVercel) {
+      // Configuração otimizada para Vercel
+      try {
+        // Primeira tentativa: usar Chromium se disponível
+        browser = await puppeteer.launch({
+          args: [
+            ...chromium.args,
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process',
+            '--disable-gpu',
+            '--disable-web-security',
+            '--disable-features=VizDisplayCompositor',
+            '--disable-extensions',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding',
+            '--disable-ipc-flooding-protection',
+            '--memory-pressure-off',
+            '--max_old_space_size=4096',
+          ],
+          defaultViewport: { width: 1920, height: 1080 },
+          executablePath: await chromium.executablePath(),
+          headless: true,
+          timeout: 30000,
+        });
+      } catch (chromiumError) {
+        console.log('Chromium falhou na Vercel, tentando Puppeteer padrão:', chromiumError);
+        
+        // Segunda tentativa: Puppeteer padrão
+        try {
+          browser = await puppeteer.launch({
+            headless: true,
+            args: [
+              '--no-sandbox',
+              '--disable-setuid-sandbox',
+              '--disable-dev-shm-usage',
+              '--disable-accelerated-2d-canvas',
+              '--no-first-run',
+              '--no-zygote',
+              '--single-process',
+              '--disable-gpu',
+              '--disable-web-security',
+              '--disable-features=VizDisplayCompositor'
+            ],
+            timeout: 30000,
+          });
+        } catch (puppeteerError) {
+          console.error('Todos os métodos de PDF falharam na Vercel:', puppeteerError);
+          throw new Error('PDF não disponível na Vercel no momento. Use o formato XLSX ou XLS.');
+        }
+      }
   } else {
     // Configuração para ambiente local (desenvolvimento)
     try {
