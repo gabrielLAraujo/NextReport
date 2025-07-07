@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireApiKey } from '@/lib/auth';
 import * as XLSX from 'xlsx';
-import puppeteer from 'puppeteer';
-import chromium from '@sparticuz/chromium';
+// Removido puppeteer - agora usando apenas geração de documentos
 import Handlebars from 'handlebars';
 
 // Schema de validação para requisições da API
@@ -336,128 +335,39 @@ function processTemplate(htmlContent: string, data: any): string {
 }
 
 // Função para gerar PDF
-async function generatePDF(
-  data: Record<string, any>,
-  template: { html: string; css: string },
+// Função para gerar PDF usando Puppeteer + Browserless
+async function generatePDFWithBrowserless(
+  fullHtml: string,
   options: any,
-  title: string
+  browserlessToken: string
 ): Promise<Buffer> {
+  // Importar puppeteer-core dinamicamente
+  const puppeteer = await import('puppeteer-core');
+  
   let browser;
-  
-  // Detectar ambiente: Vercel vs Local
-  const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
-  
-      if (isVercel) {
-      // Configuração otimizada para Vercel
-      try {
-        // Primeira tentativa: usar Chromium se disponível
-        browser = await puppeteer.launch({
-          args: [
-            ...chromium.args,
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--single-process',
-            '--disable-gpu',
-            '--disable-web-security',
-            '--disable-features=VizDisplayCompositor',
-            '--disable-extensions',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding',
-            '--disable-ipc-flooding-protection',
-            '--memory-pressure-off',
-            '--max_old_space_size=4096',
-          ],
-          defaultViewport: { width: 1920, height: 1080 },
-          executablePath: await chromium.executablePath(),
-          headless: true,
-          timeout: 30000,
-        });
-      } catch (chromiumError) {
-        console.log('Chromium falhou na Vercel, tentando Puppeteer padrão:', chromiumError);
-        
-        // Segunda tentativa: Puppeteer padrão
-        try {
-          browser = await puppeteer.launch({
-            headless: true,
-            args: [
-              '--no-sandbox',
-              '--disable-setuid-sandbox',
-              '--disable-dev-shm-usage',
-              '--disable-accelerated-2d-canvas',
-              '--no-first-run',
-              '--no-zygote',
-              '--single-process',
-              '--disable-gpu',
-              '--disable-web-security',
-              '--disable-features=VizDisplayCompositor'
-            ],
-            timeout: 30000,
-          });
-        } catch (puppeteerError) {
-          console.error('Todos os métodos de PDF falharam na Vercel:', puppeteerError);
-          throw new Error('PDF não disponível na Vercel no momento. Use o formato XLSX ou XLS.');
-        }
-      }
-  } else {
-    // Configuração para ambiente local (desenvolvimento)
-    try {
-      browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--disable-gpu',
-          '--disable-web-security',
-          '--disable-features=VizDisplayCompositor'
-        ],
-      });
-    } catch (error) {
-      console.error('Erro ao inicializar Puppeteer local:', error);
-      throw new Error('Não foi possível inicializar o navegador para geração de PDF. Verifique se o Chrome está instalado.');
-    }
-  }
-
   try {
+    // Conectar ao Browserless via WebSocket (nova URL)
+    browser = await puppeteer.default.connect({
+      browserWSEndpoint: `wss://production-sfo.browserless.io?token=${browserlessToken}`,
+    });
+
     const page = await browser.newPage();
     
-    // Processar template
-    const processedHtml = processTemplate(template.html, data);
-    
-    // HTML completo com CSS
-    const fullHtml = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>${title}</title>
-          <style>
-            body { 
-              font-family: Arial, sans-serif; 
-              margin: 0; 
-              padding: 20px;
-              color: #333;
-            }
-            ${template.css}
-          </style>
-        </head>
-        <body>
-          ${processedHtml}
-        </body>
-      </html>
-    `;
+    // Configurar viewport
+    await page.setViewport({ 
+      width: 1920, 
+      height: 1080 
+    });
 
-    await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
-    
+    // Definir o conteúdo HTML
+    await page.setContent(fullHtml, {
+      waitUntil: 'networkidle0',
+      timeout: 30000,
+    });
+
+    // Gerar PDF com opções
     const pdfBuffer = await page.pdf({
-      format: options.pageSize as any,
+      format: (options.pageSize || 'A4') as any,
       landscape: options.orientation === 'landscape',
       margin: {
         top: options.margins?.top || '1cm',
@@ -466,11 +376,207 @@ async function generatePDF(
         left: options.margins?.left || '1cm',
       },
       printBackground: true,
+      preferCSSPageSize: true,
+      displayHeaderFooter: false,
+      scale: 1,
     });
 
+    console.log('PDF gerado com sucesso via Puppeteer + Browserless:', pdfBuffer.length, 'bytes');
     return Buffer.from(pdfBuffer);
+
+  } catch (error) {
+    console.error('Erro ao gerar PDF via Puppeteer + Browserless:', error);
+    throw new Error(`Erro ao gerar PDF: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
   } finally {
-    await browser.close();
+    if (browser) {
+      await browser.close();
+    }
+  }
+}
+
+// Função para gerar PDF usando API fetch (fallback)
+async function generatePDFWithFetch(
+  fullHtml: string,
+  options: any,
+  browserlessToken: string
+): Promise<Buffer> {
+  const payload = {
+    html: fullHtml,
+    options: {
+      format: options.pageSize || 'A4',
+      landscape: options.orientation === 'landscape',
+      margin: {
+        top: options.margins?.top || '1cm',
+        right: options.margins?.right || '1cm',
+        bottom: options.margins?.bottom || '1cm',
+        left: options.margins?.left || '1cm',
+      },
+      printBackground: true,
+      preferCSSPageSize: true,
+      displayHeaderFooter: false,
+      scale: 1,
+    },
+    waitFor: 2000,
+  };
+
+  console.log('Gerando PDF via Browserless API...');
+  
+  const browserlessUrl = `https://production-sfo.browserless.io/pdf?token=${browserlessToken}`;
+  
+  const response = await fetch(browserlessUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Erro do Browserless API:', response.status, errorText);
+    throw new Error(`Erro ao gerar PDF: ${response.status} - ${errorText}`);
+  }
+
+  const pdfBuffer = await response.arrayBuffer();
+  console.log('PDF gerado com sucesso via Browserless API:', pdfBuffer.byteLength, 'bytes');
+  
+  return Buffer.from(pdfBuffer);
+}
+
+async function generatePDF(
+  data: Record<string, any>,
+  template: { html: string; css: string },
+  options: any,
+  title: string
+): Promise<Buffer> {
+  const browserlessToken = process.env.BROWSERLESS_TOKEN;
+  
+  // Processar template
+  const processedHtml = processTemplate(template.html, data);
+  
+  // HTML completo com CSS otimizado para PDF
+  const fullHtml = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <title>${title}</title>
+        <style>
+          @page {
+            size: ${options.pageSize || 'A4'};
+            margin: ${options.margins?.top || '1cm'} ${options.margins?.right || '1cm'} ${options.margins?.bottom || '1cm'} ${options.margins?.left || '1cm'};
+          }
+          
+          body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 0;
+            color: #333;
+            line-height: 1.4;
+            font-size: 12px;
+          }
+          
+          h1 { 
+            color: #2c3e50; 
+            font-size: 24px; 
+            margin-bottom: 20px;
+            page-break-after: avoid;
+          }
+          
+          h2 { 
+            color: #34495e; 
+            font-size: 18px; 
+            margin-top: 25px;
+            margin-bottom: 15px;
+            page-break-after: avoid;
+          }
+          
+          table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin: 15px 0;
+            page-break-inside: avoid;
+          }
+          
+          th, td { 
+            border: 1px solid #ddd; 
+            padding: 8px; 
+            text-align: left;
+            font-size: 11px;
+          }
+          
+          th { 
+            background-color: #f8f9fa; 
+            font-weight: bold;
+          }
+          
+          .page-break { 
+            page-break-before: always; 
+          }
+          
+          .no-break { 
+            page-break-inside: avoid; 
+          }
+          
+          .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 20px;
+          }
+          
+          .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 10px;
+            color: #666;
+          }
+          
+          ${template.css}
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>${title}</h1>
+          <p>Gerado em: ${new Date().toLocaleString('pt-BR', {
+            timeZone: 'America/Sao_Paulo',
+            day: '2-digit',
+            month: '2-digit', 
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })}</p>
+        </div>
+        
+        ${processedHtml}
+        
+        <div class="footer">
+          <p>Relatório gerado automaticamente pelo NextReport</p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  // Se não tiver token, retornar erro claro
+  if (!browserlessToken) {
+    console.warn('BROWSERLESS_TOKEN não configurado para geração de PDF');
+    throw new Error('Para gerar PDFs, configure a variável BROWSERLESS_TOKEN no arquivo .env.local. Veja o arquivo ENVIRONMENT.md para instruções.');
+  }
+
+  // Tentar usar Puppeteer primeiro, com fallback para API fetch
+  try {
+    console.log('Tentando gerar PDF via Puppeteer + Browserless...');
+    return await generatePDFWithBrowserless(fullHtml, options, browserlessToken);
+  } catch (error) {
+    console.warn('Erro com Puppeteer, tentando API fetch:', error);
+    try {
+      return await generatePDFWithFetch(fullHtml, options, browserlessToken);
+    } catch (fetchError) {
+      console.error('Erro com ambas as implementações:', fetchError);
+      throw new Error(`Erro ao gerar PDF: ${fetchError instanceof Error ? fetchError.message : 'Erro desconhecido'}`);
+    }
   }
 }
 

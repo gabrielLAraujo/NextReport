@@ -1,266 +1,169 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireApiKey } from '@/lib/auth';
-import chromium from '@sparticuz/chromium';
-import puppeteer from 'puppeteer';
 
-// Configuração para runtime do Node.js
-export const config = {
-  runtime: 'nodejs',
-};
-
-// Schema de validação para requisições da API
-const screenshotSchema = z.object({
-  url: z.string().url('URL inválida').optional(),
-  html: z.string().min(1, 'HTML é obrigatório').optional(),
-  css: z.string().optional().default(''),
-  options: z.object({
-    width: z.number().min(100).max(3840).optional().default(1920),
-    height: z.number().min(100).max(2160).optional().default(1080),
-    fullPage: z.boolean().optional().default(false),
-    quality: z.number().min(0).max(100).optional().default(90),
-    format: z.enum(['png', 'jpeg', 'webp']).optional().default('png'),
-    deviceScaleFactor: z.number().min(1).max(3).optional().default(1),
-    mobile: z.boolean().optional().default(false),
-    timeout: z.number().min(1000).max(30000).optional().default(10000),
-  }).optional().default({}),
-}).refine(data => data.url || data.html, {
-  message: 'URL ou HTML deve ser fornecido',
+// Schema de validação para as opções de screenshot
+const screenshotOptionsSchema = z.object({
+  width: z.number().min(100).max(4000).optional().default(1280),
+  height: z.number().min(100).max(4000).optional().default(720),
+  fullPage: z.boolean().optional().default(false),
+  format: z.enum(['png', 'jpeg', 'webp']).optional().default('png'),
+  quality: z.number().min(1).max(100).optional().default(80),
+  deviceScaleFactor: z.number().min(0.1).max(3).optional().default(1),
+  mobile: z.boolean().optional().default(false),
+  timeout: z.number().min(1000).max(60000).optional().default(30000),
 });
 
-export async function POST(request: NextRequest) {
-  // Validar API Key
-  const authError = await requireApiKey(request);
-  if (authError) {
-    return authError;
+// Schema de validação para a requisição
+const screenshotRequestSchema = z.object({
+  url: z.string().url().optional(),
+  html: z.string().optional(),
+  css: z.string().optional(),
+  options: screenshotOptionsSchema.optional().default({}),
+}).refine(data => data.url || data.html, {
+  message: "É necessário fornecer 'url' ou 'html'",
+});
+
+type ScreenshotRequest = z.infer<typeof screenshotRequestSchema>;
+
+// Função para fazer screenshot usando Browserless
+async function takeScreenshotWithBrowserless(request: ScreenshotRequest): Promise<Buffer> {
+  const browserlessToken = process.env.BROWSERLESS_TOKEN;
+  
+  if (!browserlessToken) {
+    throw new Error('BROWSERLESS_TOKEN não configurado');
   }
 
-  let browser;
+  const { url, html, css, options } = request;
   
-  try {
-    const body = await request.json();
-    
-    // Validar dados de entrada
-    const validatedData = screenshotSchema.parse(body);
-    const { url, html, css, options } = validatedData;
+  // Preparar o payload para o Browserless
+  const payload: any = {
+    options: {
+      fullPage: options.fullPage,
+      type: options.format,
+      quality: options.format === 'jpeg' ? options.quality : undefined,
+      clip: options.fullPage ? undefined : {
+        x: 0,
+        y: 0,
+        width: options.width,
+        height: options.height,
+      },
+    },
+    viewport: {
+      width: options.width,
+      height: options.height,
+      deviceScaleFactor: options.deviceScaleFactor,
+      isMobile: options.mobile,
+    },
+    waitFor: 1000, // Aguardar 1 segundo para garantir que a página carregou
+  };
 
-    // Configurar Puppeteer para ambiente serverless
-    const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
-    
-    if (isVercel) {
-      // Configuração otimizada para Vercel
-      try {
-        // Primeira tentativa: usar Chromium se disponível
-        browser = await puppeteer.launch({
-          args: [
-            ...chromium.args,
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--single-process',
-            '--disable-gpu',
-            '--disable-web-security',
-            '--disable-features=VizDisplayCompositor',
-            '--disable-extensions',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding',
-            '--disable-ipc-flooding-protection',
-            '--memory-pressure-off',
-            '--max_old_space_size=4096',
-          ],
-          defaultViewport: {
-            width: options.width,
-            height: options.height,
-            deviceScaleFactor: options.deviceScaleFactor,
-            isMobile: options.mobile,
-          },
-          executablePath: await chromium.executablePath(),
-          headless: true,
-          timeout: options.timeout,
-        });
-      } catch (chromiumError) {
-        console.log('Chromium falhou na Vercel, tentando Puppeteer padrão:', chromiumError);
-        
-        // Segunda tentativa: Puppeteer padrão
-        try {
-          browser = await puppeteer.launch({
-            headless: true,
-            args: [
-              '--no-sandbox',
-              '--disable-setuid-sandbox',
-              '--disable-dev-shm-usage',
-              '--disable-accelerated-2d-canvas',
-              '--no-first-run',
-              '--no-zygote',
-              '--single-process',
-              '--disable-gpu',
-              '--disable-web-security',
-              '--disable-features=VizDisplayCompositor'
-            ],
-            defaultViewport: {
-              width: options.width,
-              height: options.height,
-              deviceScaleFactor: options.deviceScaleFactor,
-              isMobile: options.mobile,
-            },
-            timeout: options.timeout,
-          });
-        } catch (puppeteerError) {
-          console.error('Todos os métodos de screenshot falharam na Vercel:', puppeteerError);
-          throw new Error('Screenshot não disponível na Vercel no momento.');
-        }
-      }
-    } else {
-      // Configuração para ambiente local (desenvolvimento)
-      try {
-        browser = await puppeteer.launch({
-          headless: true,
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--disable-gpu',
-            '--disable-web-security',
-            '--disable-features=VizDisplayCompositor',
-          ],
-          defaultViewport: {
-            width: options.width,
-            height: options.height,
-            deviceScaleFactor: options.deviceScaleFactor,
-            isMobile: options.mobile,
-          },
-          timeout: options.timeout,
-        });
-      } catch (error) {
-        console.error('Erro ao inicializar Puppeteer local:', error);
-        throw new Error('Não foi possível inicializar o navegador para geração de screenshot. Verifique se o Chrome está instalado.');
-      }
+  // Se for URL, usar diretamente
+  if (url) {
+    payload.url = url;
+  } 
+  // Se for HTML customizado, usar o endpoint de content
+  else if (html) {
+    payload.html = html;
+    if (css) {
+      // Injetar CSS no HTML
+      const htmlWithCss = html.includes('<head>') 
+        ? html.replace('<head>', `<head><style>${css}</style>`)
+        : `<style>${css}</style>${html}`;
+      payload.html = htmlWithCss;
     }
+  }
+
+  // Fazer requisição para o Browserless (nova URL)
+  const browserlessUrl = `https://production-sfo.browserless.io/screenshot?token=${browserlessToken}`;
+  
+  const response = await fetch(browserlessUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Erro do Browserless: ${response.status} - ${errorText}`);
+  }
+
+  const imageBuffer = await response.arrayBuffer();
+  return Buffer.from(imageBuffer);
+}
+
+// Função para fazer screenshot usando Puppeteer + Browserless
+async function takeScreenshotLocal(request: ScreenshotRequest): Promise<Buffer> {
+  const browserlessToken = process.env.BROWSERLESS_TOKEN;
+  
+  if (!browserlessToken) {
+    throw new Error('BROWSERLESS_TOKEN não configurado');
+  }
+
+  const { url, html, css, options } = request;
+  
+  // Importar puppeteer-core dinamicamente
+  const puppeteer = await import('puppeteer-core');
+  
+  let browser;
+  try {
+    // Conectar ao Browserless via WebSocket (nova URL)
+    browser = await puppeteer.default.connect({
+      browserWSEndpoint: `wss://production-sfo.browserless.io?token=${browserlessToken}`,
+    });
 
     const page = await browser.newPage();
     
-    // Configurar timeout para navegação
-    await page.setDefaultTimeout(options.timeout);
-    await page.setDefaultNavigationTimeout(options.timeout);
+    // Configurar viewport
+    await page.setViewport({
+      width: options.width,
+      height: options.height,
+      deviceScaleFactor: options.deviceScaleFactor,
+      isMobile: options.mobile,
+    });
 
-    // Configurar user agent se for mobile
-    if (options.mobile) {
-      await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1');
-    }
-
-    let screenshotBuffer: Buffer;
-
+    // Carregar conteúdo
     if (url) {
-      // Capturar screenshot de URL
-      await page.goto(url, { 
+      await page.goto(url, {
         waitUntil: 'networkidle0',
-        timeout: options.timeout 
+        timeout: options.timeout,
       });
-      
-      const screenshot = await page.screenshot({
-        fullPage: options.fullPage,
-        quality: options.format === 'jpeg' ? options.quality : undefined,
-        type: options.format as any,
-      });
-      screenshotBuffer = Buffer.from(screenshot);
     } else if (html) {
-      // Capturar screenshot de HTML customizado
-      const fullHtml = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Screenshot</title>
-            <style>
-              body { 
-                font-family: Arial, sans-serif; 
-                margin: 0; 
-                padding: 20px;
-                color: #333;
-                background: white;
-              }
-              * {
-                box-sizing: border-box;
-              }
-              ${css}
-            </style>
-          </head>
-          <body>
-            ${html}
-          </body>
-        </html>
-      `;
-
-      await page.setContent(fullHtml, { 
-        waitUntil: 'networkidle0',
-        timeout: options.timeout 
-      });
+      // Preparar HTML com CSS
+      let fullHtml = html;
+      if (css) {
+        fullHtml = html.includes('<head>') 
+          ? html.replace('<head>', `<head><style>${css}</style>`)
+          : `<style>${css}</style>${html}`;
+      }
       
-      const screenshot = await page.screenshot({
-        fullPage: options.fullPage,
-        quality: options.format === 'jpeg' ? options.quality : undefined,
-        type: options.format as any,
+      await page.setContent(fullHtml, {
+        waitUntil: 'networkidle0',
+        timeout: options.timeout,
       });
-      screenshotBuffer = Buffer.from(screenshot);
-    } else {
-      throw new Error('URL ou HTML deve ser fornecido');
     }
 
-    // Gerar nome do arquivo
-    const timestamp = Date.now();
-    const fileName = `screenshot_${timestamp}.${options.format}`;
-
-    // Definir content type
-    const contentTypes = {
-      png: 'image/png',
-      jpeg: 'image/jpeg',
-      webp: 'image/webp',
-    };
-
-    // Retornar imagem
-    return new NextResponse(screenshotBuffer as any, {
-      status: 200,
-      headers: {
-        'Content-Type': contentTypes[options.format],
-        'Content-Disposition': `attachment; filename="${fileName}"`,
-        'Content-Length': screenshotBuffer.length.toString(),
-        'X-Screenshot-ID': timestamp.toString(),
-        'X-Generated-At': new Date().toISOString(),
-        'X-Screenshot-Format': options.format,
-        'X-Screenshot-Size': `${options.width}x${options.height}`,
+    // Capturar screenshot
+    const screenshotBuffer = await page.screenshot({
+      type: options.format as any,
+      quality: options.format === 'jpeg' ? options.quality : undefined,
+      fullPage: options.fullPage,
+      clip: options.fullPage ? undefined : {
+        x: 0,
+        y: 0,
+        width: options.width,
+        height: options.height,
       },
     });
 
-  } catch (error) {
-    console.error('Erro ao gerar screenshot:', error);
-    
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { 
-          error: 'Dados de entrada inválidos',
-          details: error.errors.map(err => ({
-            field: err.path.join('.'),
-            message: err.message,
-          }))
-        },
-        { status: 400 }
-      );
-    }
+    return Buffer.from(screenshotBuffer);
 
-    return NextResponse.json(
-      { 
-        error: 'Erro interno do servidor',
-        message: error instanceof Error ? error.message : 'Erro desconhecido'
-      },
-      { status: 500 }
-    );
+  } catch (error) {
+    console.error('Erro ao gerar screenshot via Puppeteer:', error);
+    throw new Error(`Erro ao gerar screenshot: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
   } finally {
     if (browser) {
       await browser.close();
@@ -268,61 +171,121 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Método GET para documentação da API
 export async function GET() {
   return NextResponse.json({
-    name: 'Screenshot API',
-    description: 'Gera capturas de tela de URLs ou HTML customizado',
+    message: 'API de Screenshot - NextReport',
     version: '1.0.0',
     endpoints: {
-      POST: {
-        description: 'Gera uma captura de tela',
-        parameters: {
-          url: {
-            type: 'string',
-            description: 'URL para capturar (opcional se HTML for fornecido)',
-            example: 'https://example.com'
-          },
-          html: {
-            type: 'string',
-            description: 'HTML customizado para capturar (opcional se URL for fornecida)',
-            example: '<div><h1>Olá Mundo</h1></div>'
-          },
-          css: {
-            type: 'string',
-            description: 'CSS adicional para aplicar ao HTML',
-            example: 'body { background: #f0f0f0; }'
-          },
-          options: {
-            type: 'object',
-            description: 'Opções de configuração da captura',
-            properties: {
-              width: { type: 'number', default: 1920, description: 'Largura da viewport' },
-              height: { type: 'number', default: 1080, description: 'Altura da viewport' },
-              fullPage: { type: 'boolean', default: false, description: 'Capturar página completa' },
-              quality: { type: 'number', default: 90, description: 'Qualidade da imagem (1-100)' },
-              format: { type: 'string', default: 'png', description: 'Formato da imagem (png, jpeg, webp)' },
-              deviceScaleFactor: { type: 'number', default: 1, description: 'Fator de escala do dispositivo' },
-              mobile: { type: 'boolean', default: false, description: 'Simular dispositivo móvel' },
-              timeout: { type: 'number', default: 10000, description: 'Timeout em milissegundos' }
-            }
-          }
-        },
-        responses: {
-          200: {
-            description: 'Captura de tela gerada com sucesso',
-            contentType: 'image/png | image/jpeg | image/webp'
-          },
-          400: { description: 'Dados de entrada inválidos' },
-          401: { description: 'API Key inválida ou ausente' },
-          500: { description: 'Erro interno do servidor' }
-        }
-      }
+      POST: '/api/v1/screenshot',
     },
-    authentication: {
-      type: 'API Key',
-      header: 'X-API-Key',
-      description: 'Chave de API necessária para autenticação'
-    }
+    description: 'Gera screenshots de URLs ou HTML customizado',
+    parameters: {
+      url: 'URL da página para capturar (opcional se html for fornecido)',
+      html: 'HTML customizado para renderizar (opcional se url for fornecida)',
+      css: 'CSS customizado para aplicar ao HTML (opcional)',
+      options: {
+        width: 'Largura da viewport (padrão: 1280)',
+        height: 'Altura da viewport (padrão: 720)',
+        fullPage: 'Capturar página inteira (padrão: false)',
+        format: 'Formato da imagem: png, jpeg, webp (padrão: png)',
+        quality: 'Qualidade da imagem para JPEG (1-100, padrão: 80)',
+        deviceScaleFactor: 'Fator de escala do dispositivo (padrão: 1)',
+        mobile: 'Simular dispositivo móvel (padrão: false)',
+        timeout: 'Timeout em ms (padrão: 30000)',
+      },
+    },
+    examples: {
+      url_screenshot: {
+        url: 'https://example.com',
+        options: {
+          width: 1920,
+          height: 1080,
+          fullPage: true,
+          format: 'png',
+        },
+      },
+      html_screenshot: {
+        html: '<h1>Hello World</h1><p>Este é um teste</p>',
+        css: 'body { font-family: Arial; background: #f0f0f0; }',
+        options: {
+          width: 800,
+          height: 600,
+          format: 'jpeg',
+          quality: 90,
+        },
+      },
+    },
   });
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    // Validar API Key
+    const authError = await requireApiKey(request);
+    if (authError) {
+      return authError;
+    }
+
+    // Parse e validação do corpo da requisição
+    const body = await request.json();
+    const validatedData = screenshotRequestSchema.parse(body);
+
+    console.log('Gerando screenshot:', {
+      url: validatedData.url,
+      hasHtml: !!validatedData.html,
+      options: validatedData.options,
+    });
+
+    // Gerar screenshot
+    const imageBuffer = process.env.NODE_ENV === 'development' && process.env.USE_LOCAL_PUPPETEER === 'true'
+      ? await takeScreenshotLocal(validatedData)
+      : await takeScreenshotWithBrowserless(validatedData);
+
+    // Determinar content-type baseado no formato
+    const contentType = `image/${validatedData.options.format}`;
+    
+    // Gerar nome do arquivo
+    const timestamp = Date.now();
+    const filename = `screenshot-${timestamp}.${validatedData.options.format}`;
+
+    console.log('Screenshot gerado com sucesso:', {
+      size: imageBuffer.length,
+      format: validatedData.options.format,
+      filename,
+    });
+
+    // Retornar a imagem
+    return new NextResponse(imageBuffer as any, {
+      status: 200,
+      headers: {
+        'Content-Type': contentType,
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Length': imageBuffer.length.toString(),
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+    });
+
+  } catch (error) {
+    console.error('Erro ao gerar screenshot:', error);
+
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        {
+          error: 'Dados de entrada inválidos',
+          details: error.errors,
+        },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        error: 'Erro interno do servidor',
+        message: error instanceof Error ? error.message : 'Erro desconhecido',
+      },
+      { status: 500 }
+    );
+  }
 } 

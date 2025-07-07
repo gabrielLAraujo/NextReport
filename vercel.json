@@ -24,7 +24,6 @@
   "env": {
     "NODE_ENV": "production",
     "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD": "true",
-    "PUPPETEER_EXECUTABLE_PATH": "/usr/bin/google-chrome-stable",
     "PRISMA_CLI_BINARY_TARGETS": "native,rhel-openssl-1.0.x"
   },
   "headers": [
