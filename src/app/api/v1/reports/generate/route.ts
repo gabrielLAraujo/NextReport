@@ -361,9 +361,12 @@ async function generatePDFWithBrowserless(
 
     // Definir o conteúdo HTML
     await page.setContent(fullHtml, {
-      waitUntil: 'networkidle0',
-      timeout: 30000,
+      waitUntil: 'domcontentloaded',
+      timeout: 15000,
     });
+
+    // Aguardar um tempo para garantir o carregamento
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Gerar PDF com opções
     const pdfBuffer = await page.pdf({
@@ -394,6 +397,69 @@ async function generatePDFWithBrowserless(
   }
 }
 
+// Função para gerar PDF local básico (sem Browserless)
+async function generatePDFLocal(
+  fullHtml: string,
+  options: any,
+  title: string
+): Promise<Buffer> {
+  console.log('Gerando PDF local básico...');
+  
+  // Usar jsPDF para gerar um PDF básico com as informações principais
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF({
+    orientation: options.orientation === 'landscape' ? 'l' : 'p',
+    unit: 'mm',
+    format: options.pageSize?.toLowerCase() || 'a4'
+  });
+
+  // Adicionar título
+  doc.setFontSize(20);
+  doc.text(title, 20, 30);
+  
+  // Adicionar data de geração
+  doc.setFontSize(12);
+  const dataGeracao = new Date().toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit', 
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  doc.text(`Gerado em: ${dataGeracao}`, 20, 45);
+
+  // Adicionar aviso sobre limitações
+  doc.setFontSize(10);
+  doc.text('⚠️  PDF gerado em modo básico (sem token Browserless)', 20, 60);
+  doc.text('Para PDFs completos com renderização HTML/CSS:', 20, 70);
+  doc.text('Configure BROWSERLESS_TOKEN (veja ENVIRONMENT.md)', 20, 80);
+
+  // Extrair texto básico do HTML (remover tags)
+  const textoSimples = fullHtml
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .substring(0, 2000); // Limitar tamanho
+
+  doc.setFontSize(9);
+  const linhas = doc.splitTextToSize(textoSimples, 170);
+  doc.text(linhas, 20, 100);
+
+  // Adicionar rodapé
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.text(`Página ${i} de ${totalPages} - NextReport (Modo Básico)`, 20, 280);
+  }
+
+  const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
+  console.log('PDF local básico gerado:', pdfBuffer.length, 'bytes');
+  
+  return pdfBuffer;
+}
+
 // Função para gerar PDF usando API fetch (fallback)
 async function generatePDFWithFetch(
   fullHtml: string,
@@ -416,7 +482,10 @@ async function generatePDFWithFetch(
       displayHeaderFooter: false,
       scale: 1,
     },
-    waitFor: 2000,
+    gotoOptions: {
+      waitUntil: 'domcontentloaded',
+      timeout: 15000,
+    },
   };
 
   console.log('Gerando PDF via Browserless API...');
@@ -559,13 +628,13 @@ async function generatePDF(
     </html>
   `;
 
-  // Se não tiver token, retornar erro claro
+  // Se não tiver token, tentar geração local básica
   if (!browserlessToken) {
-    console.warn('BROWSERLESS_TOKEN não configurado para geração de PDF');
-    throw new Error('Para gerar PDFs, configure a variável BROWSERLESS_TOKEN no arquivo .env.local. Veja o arquivo ENVIRONMENT.md para instruções.');
+    console.warn('BROWSERLESS_TOKEN não configurado, tentando geração local...');
+    return await generatePDFLocal(fullHtml, options, title);
   }
 
-  // Tentar usar Puppeteer primeiro, com fallback para API fetch
+  // Tentar usar Puppeteer primeiro, com fallback para API fetch, e depois modo local
   try {
     console.log('Tentando gerar PDF via Puppeteer + Browserless...');
     return await generatePDFWithBrowserless(fullHtml, options, browserlessToken);
@@ -574,8 +643,13 @@ async function generatePDF(
     try {
       return await generatePDFWithFetch(fullHtml, options, browserlessToken);
     } catch (fetchError) {
-      console.error('Erro com ambas as implementações:', fetchError);
-      throw new Error(`Erro ao gerar PDF: ${fetchError instanceof Error ? fetchError.message : 'Erro desconhecido'}`);
+      console.warn('Erro com API fetch, tentando modo local básico:', fetchError);
+      try {
+        return await generatePDFLocal(fullHtml, options, title);
+      } catch (localError) {
+        console.error('Erro com todas as implementações:', localError);
+        throw new Error(`Erro ao gerar PDF: ${localError instanceof Error ? localError.message : 'Erro desconhecido'}`);
+      }
     }
   }
 }
